@@ -22,6 +22,9 @@ interface RecurringRuleDao {
     @Update
     suspend fun update(rule: RecurringRuleEntity)
 
+    @Query("DELETE FROM recurring_rules WHERE walletId = :walletId")
+    suspend fun deleteByWalletId(walletId: Long)
+
     @Query("DELETE FROM recurring_rules")
     suspend fun deleteAll()
 }

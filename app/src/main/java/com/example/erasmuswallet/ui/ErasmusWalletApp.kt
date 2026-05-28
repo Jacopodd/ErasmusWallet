@@ -1,11 +1,15 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.example.erasmuswallet.ui
 
 import android.content.Intent
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -46,11 +51,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -58,10 +65,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -69,6 +79,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -97,6 +108,18 @@ import com.example.erasmuswallet.domain.model.ReportSummary
 import com.example.erasmuswallet.domain.model.SimulationRequest
 import com.example.erasmuswallet.domain.model.SimulationResult
 import com.example.erasmuswallet.ui.theme.Danger
+import com.example.erasmuswallet.ui.theme.Aqua
+import com.example.erasmuswallet.ui.theme.CyanGlow
+import com.example.erasmuswallet.ui.theme.ElectricBlue
+import com.example.erasmuswallet.ui.theme.LiquidBackground
+import com.example.erasmuswallet.ui.theme.LiquidBackgroundDeep
+import com.example.erasmuswallet.ui.theme.LiquidBorder
+import com.example.erasmuswallet.ui.theme.LiquidBorderStrong
+import com.example.erasmuswallet.ui.theme.LiquidSurface
+import com.example.erasmuswallet.ui.theme.LiquidSurfaceElevated
+import com.example.erasmuswallet.ui.theme.LiquidSurfaceSoft
+import com.example.erasmuswallet.ui.theme.LiquidText
+import com.example.erasmuswallet.ui.theme.LiquidTextSecondary
 import com.example.erasmuswallet.ui.theme.Success
 import com.example.erasmuswallet.ui.theme.Warning
 import com.example.erasmuswallet.ui.util.parseItalianDate
@@ -104,6 +127,7 @@ import com.example.erasmuswallet.ui.util.toEuro
 import com.example.erasmuswallet.ui.util.toItalianDate
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.util.UUID
 
 private data class Destination(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
@@ -139,15 +163,26 @@ fun ErasmusWalletApp(viewModel: AppViewModel) {
     val currentRoute = backStack?.destination?.route ?: "dashboard"
 
     Scaffold(
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Erasmus Budget Guardian") }
+                title = { Text("Erasmus Budget Guardian", color = LiquidText) },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = LiquidSurface.copy(alpha = 0.92f),
+                    scrolledContainerColor = LiquidSurfaceElevated.copy(alpha = 0.96f),
+                    titleContentColor = LiquidText,
+                    navigationIconContentColor = LiquidText,
+                    actionIconContentColor = LiquidText
+                )
             )
         },
         bottomBar = {
-            NavigationBar {
-                destinations.forEach { destination ->
+            NavigationBar(
+                containerColor = LiquidSurface.copy(alpha = 0.94f),
+                tonalElevation = 0.dp
+            ) {
+                destinations.forEach { destination -> 
                     NavigationBarItem(
                         selected = currentRoute == destination.route,
                         onClick = {
@@ -164,74 +199,81 @@ fun ErasmusWalletApp(viewModel: AppViewModel) {
             }
         }
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = "dashboard",
-            modifier = Modifier.padding(innerPadding)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(AppBackdropBrush())
+                .padding(innerPadding)
         ) {
-            composable("dashboard") {
-                DashboardScreen(uiState, onScenarioChange = viewModel::setScenario)
-            }
-            composable("movimenti") {
-                MovementsScreen(
-                    uiState = uiState,
-                    onSave = viewModel::saveMovement,
-                    onDelete = viewModel::deleteMovement,
-                    onTransfer = viewModel::addTransfer
-                )
-            }
-            composable("wallet") {
-                WalletScreen(
-                    uiState = uiState,
-                    onSave = viewModel::saveWallet,
-                    onToggleArchive = viewModel::toggleWalletArchive,
-                    onOpenCategories = { navController.navigate("categorie") }
-                )
-            }
-            composable("ricorrenti") {
-                RecurringScreen(
-                    uiState = uiState,
-                    onSave = viewModel::saveRecurringRule,
-                    onToggle = viewModel::toggleRecurringRule
-                )
-            }
-            composable("simulatore") {
-                SimulatorScreen(
-                    uiState = uiState,
-                    onScenarioChange = viewModel::setScenario,
-                    onSimulate = viewModel::runSimulation,
-                    onCommit = viewModel::commitSimulation,
-                    onSaveScenario = viewModel::saveScenarioNote,
-                    onClear = viewModel::clearSimulation
-                )
-            }
-            composable("report") {
-                ReportScreen(uiState)
-            }
-            composable("impostazioni") {
-                SettingsScreen(
-                    uiState = uiState,
-                    onSave = viewModel::saveSettings,
-                    onExport = viewModel::exportBackup,
-                    onImport = viewModel::importBackup,
-                    onBackupChange = viewModel::updateBackupText,
-                    onReset = viewModel::resetAllData,
-                    onOpenCategories = { navController.navigate("categorie") },
-                    onShareBackup = {
-                        val intent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, uiState.backupText)
+            NavHost(
+                navController = navController,
+                startDestination = "dashboard"
+            ) {
+                composable("dashboard") {
+                    DashboardScreen(uiState, onScenarioChange = viewModel::setScenario)
+                }
+                composable("movimenti") {
+                    MovementsScreen(
+                        uiState = uiState,
+                        onSave = viewModel::saveMovement,
+                        onDelete = viewModel::deleteMovement,
+                        onTransfer = viewModel::addTransfer
+                    )
+                }
+                composable("wallet") {
+                    WalletScreen(
+                        uiState = uiState,
+                        onSave = viewModel::saveWallet,
+                        onDelete = viewModel::deleteWallet,
+                        onToggleArchive = viewModel::toggleWalletArchive,
+                        onOpenCategories = { navController.navigate("categorie") }
+                    )
+                }
+                composable("ricorrenti") {
+                    RecurringScreen(
+                        uiState = uiState,
+                        onSave = viewModel::saveRecurringRule,
+                        onToggle = viewModel::toggleRecurringRule
+                    )
+                }
+                composable("simulatore") {
+                    SimulatorScreen(
+                        uiState = uiState,
+                        onScenarioChange = viewModel::setScenario,
+                        onSimulate = viewModel::runSimulation,
+                        onCommit = viewModel::commitSimulation,
+                        onSaveScenario = viewModel::saveScenarioNote,
+                        onClear = viewModel::clearSimulation
+                    )
+                }
+                composable("report") {
+                    ReportScreen(uiState)
+                }
+                composable("impostazioni") {
+                    SettingsScreen(
+                        uiState = uiState,
+                        onSave = viewModel::saveSettings,
+                        onExport = viewModel::exportBackup,
+                        onImport = viewModel::importBackup,
+                        onBackupChange = viewModel::updateBackupText,
+                        onReset = viewModel::resetAllData,
+                        onOpenCategories = { navController.navigate("categorie") },
+                        onShareBackup = {
+                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, uiState.backupText)
+                            }
+                            context.startActivity(Intent.createChooser(intent, "Condividi backup"))
                         }
-                        context.startActivity(Intent.createChooser(intent, "Condividi backup"))
-                    }
-                )
-            }
-            composable("categorie") {
-                CategoryScreen(
-                    uiState = uiState,
-                    onSave = viewModel::saveCategory,
-                    onToggle = viewModel::toggleCategory
-                )
+                    )
+                }
+                composable("categorie") {
+                    CategoryScreen(
+                        uiState = uiState,
+                        onSave = viewModel::saveCategory,
+                        onToggle = viewModel::toggleCategory
+                    )
+                }
             }
         }
     }
@@ -257,58 +299,93 @@ private fun OnboardingScreen(
     var finalGoal by rememberSaveable { mutableStateOf("1000") }
     var emergencyFund by rememberSaveable { mutableStateOf("300") }
     var walletInputs by rememberSaveable { mutableStateOf(wallets.associate { it.id to "0" }) }
-    var scholarship by rememberSaveable { mutableStateOf("0") }
-    var parents by rememberSaveable { mutableStateOf("0") }
-    var rent by rememberSaveable { mutableStateOf("450") }
-    var bills by rememberSaveable { mutableStateOf("80") }
-    var bus by rememberSaveable { mutableStateOf("35") }
+    val incomeRows = remember {
+        mutableStateListOf(
+            OnboardingIncomeDraft(title = "Borsa Erasmus", amount = "0", walletId = wallets.firstOrNull()?.id),
+            OnboardingIncomeDraft(title = "Genitori", amount = "0", walletId = wallets.firstOrNull()?.id)
+        )
+    }
+    val expenseRows = remember {
+        mutableStateListOf(
+            OnboardingExpenseDraft(
+                title = "Affitto",
+                amount = "450",
+                categoryId = categories.firstOrNull { it.name == "Affitto" }?.id
+            ),
+            OnboardingExpenseDraft(
+                title = "Bollette",
+                amount = "80",
+                categoryId = categories.firstOrNull { it.name == "Bollette" }?.id
+            ),
+            OnboardingExpenseDraft(
+                title = "Abbonamento pullman",
+                amount = "35",
+                categoryId = categories.firstOrNull { it.name == "Trasporti" }?.id
+            )
+        )
+    }
 
-    Surface(modifier = Modifier.fillMaxSize()) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Color.Transparent
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text("Configura il tuo Erasmus in pochi minuti", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            HeroBanner(
+                title = "Configura il tuo Erasmus in pochi minuti",
+                subtitle = "Tutto rimane modificabile e si aggiorna in tempo reale."
+            )
             MoneyField("Data inizio Erasmus", startDate) { startDate = it }
-            MoneyField("Data fine Erasmus", endDate) { endDate = it }
+            MoneyField("Data fine Erasmus (Orientativo)", endDate) { endDate = it }
             MoneyField("Obiettivo finale da conservare", finalGoal) { finalGoal = it }
             MoneyField("Fondo imprevisti", emergencyFund) { emergencyFund = it }
-            Text("Saldi iniziali wallet", fontWeight = FontWeight.SemiBold)
+            GlassSectionHeader("Saldi iniziali wallet")
             wallets.forEach { wallet ->
-                MoneyField(wallet.name, walletInputs[wallet.id].orEmpty()) {
-                    walletInputs = walletInputs.toMutableMap().apply { put(wallet.id, it) }
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(wallet.name, color = LiquidText, fontWeight = FontWeight.SemiBold)
+                        MoneyField("Saldo iniziale", walletInputs[wallet.id].orEmpty()) {
+                            walletInputs = walletInputs.toMutableMap().apply { put(wallet.id, it) }
+                        }
+                    }
                 }
             }
-            Text("Entrate previste", fontWeight = FontWeight.SemiBold)
-            MoneyField("Borsa Erasmus", scholarship) { scholarship = it }
-            MoneyField("Soldi dai genitori", parents) { parents = it }
-            Text("Spese fisse principali", fontWeight = FontWeight.SemiBold)
-            MoneyField("Affitto mensile", rent) { rent = it }
-            MoneyField("Bollette / spese casa", bills) { bills = it }
-            MoneyField("Abbonamento pullman", bus) { bus = it }
+            EditableIncomeSection(
+                rows = incomeRows,
+                wallets = wallets,
+                onAdd = { incomeRows += OnboardingIncomeDraft(title = "Nuova entrata", amount = "0") },
+                onRemove = { index -> if (incomeRows.size > 1) incomeRows.removeAt(index) },
+                onChange = { index, row -> incomeRows[index] = row }
+            )
+            EditableExpenseSection(
+                rows = expenseRows,
+                categories = categories,
+                wallets = wallets,
+                onAdd = { expenseRows += OnboardingExpenseDraft(title = "Nuova spesa fissa", amount = "0") },
+                onRemove = { index -> if (expenseRows.size > 1) expenseRows.removeAt(index) },
+                onChange = { index, row -> expenseRows[index] = row }
+            )
             Button(
                 onClick = {
                     val parsedStart = parseItalianDate(startDate) ?: LocalDate.now()
                     val parsedEnd = parseItalianDate(endDate) ?: parsedStart.plusMonths(6)
                     val firstWalletId = wallets.firstOrNull()?.id ?: 0L
-                    val expenses = listOfNotNull(
-                        categories.find { it.name == "Affitto" }?.let {
-                            OnboardingRecurringInput("Affitto", rent.toDoubleOrNull() ?: 0.0, it.id, firstWalletId, parsedStart)
-                        },
-                        categories.find { it.name == "Bollette" }?.let {
-                            OnboardingRecurringInput("Bollette", bills.toDoubleOrNull() ?: 0.0, it.id, firstWalletId, parsedStart)
-                        },
-                        categories.find { it.name == "Trasporti" }?.let {
-                            OnboardingRecurringInput("Abbonamento pullman", bus.toDoubleOrNull() ?: 0.0, it.id, firstWalletId, parsedStart)
-                        }
-                    ).filter { it.amount > 0 }
-                    val incomes = listOf(
-                        OnboardingIncomeInput("Borsa Erasmus", scholarship.toDoubleOrNull() ?: 0.0, IncomeReliability.STIMATA, parsedStart.plusMonths(1), firstWalletId),
-                        OnboardingIncomeInput("Genitori", parents.toDoubleOrNull() ?: 0.0, IncomeReliability.STIMATA, parsedStart.plusMonths(1), firstWalletId)
-                    ).filter { it.amount > 0 }
+                    val expenses = expenseRows.mapNotNull { row ->
+                        val amount = row.amount.toDoubleOrNull() ?: 0.0
+                        val categoryId = row.categoryId ?: categories.firstOrNull()?.id
+                        if (amount <= 0.0 || categoryId == null) return@mapNotNull null
+                        OnboardingRecurringInput(row.title.ifBlank { "Spesa fissa" }, amount, categoryId, firstWalletId, parsedStart)
+                    }
+                    val incomes = incomeRows.mapNotNull { row ->
+                        val amount = row.amount.toDoubleOrNull() ?: 0.0
+                        if (amount <= 0.0) return@mapNotNull null
+                        OnboardingIncomeInput(row.title.ifBlank { "Entrata" }, amount, row.reliability, parsedStart.plusMonths(1), row.walletId ?: firstWalletId)
+                    }
                     onComplete(
                         parsedStart,
                         parsedEnd,
@@ -477,41 +554,71 @@ private fun MovementsScreen(
 private fun WalletScreen(
     uiState: AppUiState,
     onSave: (Long, String, WalletType, Double, String?) -> Unit,
+    onDelete: (WalletEntity) -> Unit,
     onToggleArchive: (WalletEntity) -> Unit,
     onOpenCategories: () -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var editingWallet by remember { mutableStateOf<WalletEntity?>(null) }
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { showDialog = true }) { Text("Nuovo wallet") }
-            OutlinedButton(onClick = onOpenCategories) { Text("Gestisci categorie") }
-        }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(uiState.summary?.walletSummaries.orEmpty()) { summary ->
-                MetricCard(
-                    title = summary.wallet.name,
-                    value = summary.currentBalance.toEuro(),
-                    subtitle = buildString {
-                        append(summary.wallet.type.name)
-                        if (summary.lastMovements.isNotEmpty()) {
-                            append(" • Ultimi: ")
-                            append(summary.lastMovements.joinToString { it.title })
-                        }
-                    },
-                    trailing = {
-                        Row {
-                            TextButton(onClick = {
-                                editingWallet = summary.wallet
-                                showDialog = true
-                            }) { Text("Modifica") }
-                            TextButton(onClick = { onToggleArchive(summary.wallet) }) {
-                                Text(if (summary.wallet.isArchived) "Riattiva" else "Archivia")
+    Box(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            GlassSectionHeader("Wallet")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onOpenCategories) { Text("Gestisci categorie") }
+            }
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(uiState.summary?.walletSummaries.orEmpty()) { summary ->
+                    GlassCard {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(summary.wallet.name, color = LiquidText, fontWeight = FontWeight.SemiBold)
+                                    Text(summary.currentBalance.toEuro(), style = MaterialTheme.typography.titleLarge, color = Aqua)
+                                    Text(
+                                        buildString {
+                                            append(summary.wallet.type.name)
+                                            if (summary.lastMovements.isNotEmpty()) {
+                                                append(" • Ultimi: ")
+                                                append(summary.lastMovements.joinToString { it.title })
+                                            }
+                                        },
+                                        color = LiquidTextSecondary,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                WalletBadge(summary.wallet.type)
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(onClick = {
+                                    editingWallet = summary.wallet
+                                    showDialog = true
+                                }) { Text("Modifica") }
+                                TextButton(onClick = { onToggleArchive(summary.wallet) }) {
+                                    Text(if (summary.wallet.isArchived) "Riattiva" else "Archivia")
+                                }
+                                TextButton(onClick = { onDelete(summary.wallet) }) {
+                                    Text("Elimina", color = Danger)
+                                }
                             }
                         }
                     }
-                )
+                }
             }
+        }
+        FloatingActionButton(
+            onClick = { showDialog = true },
+            containerColor = CyanGlow,
+            contentColor = LiquidBackground,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "Nuovo wallet")
         }
     }
     if (showDialog) {
@@ -742,8 +849,8 @@ private fun SettingsScreen(
     var privacyMode by rememberSaveable(settings.privacyMode) { mutableStateOf(settings.privacyMode) }
     var defaultScenario by rememberSaveable(settings.defaultScenario) { mutableStateOf(settings.defaultScenario) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        MoneyField("Data inizio", startDate) { startDate = it }
-        MoneyField("Data fine", endDate) { endDate = it }
+        MoneyField("Data inizio Erasmus", startDate) { startDate = it }
+        MoneyField("Data fine Erasmus (Orientativo)", endDate) { endDate = it }
         MoneyField("Obiettivo finale", finalGoal) { finalGoal = it }
         MoneyField("Fondo imprevisti", emergencyFund) { emergencyFund = it }
         MoneyField("Soglia sicuro", safeThreshold) { safeThreshold = it }
@@ -831,21 +938,21 @@ private fun SummaryGrid(summary: BudgetSummary) {
 
 @Composable
 private fun SimulationResultCard(result: SimulationResult) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Esito: ${result.status.name.replace("_", " ")}", fontWeight = FontWeight.Bold, color = statusColor(result.status))
-            Text("Costo totale reale: ${result.totalCost.toEuro()}")
-            Text("Proiezione finale attuale: ${result.currentProjection.toEuro()}")
-            Text("Dopo la spesa: ${result.newProjection.toEuro()}")
-            Text("Differenza rispetto all'obiettivo: ${result.differenceFromGoal.toEuro()}")
-            Text("Budget giornaliero attuale: ${result.currentDailyBudget.toEuro()}")
-            Text("Budget giornaliero dopo: ${result.newDailyBudget.toEuro()}")
-            Text("Budget settimanale attuale: ${result.currentWeeklyBudget.toEuro()}")
-            Text("Budget settimanale dopo: ${result.newWeeklyBudget.toEuro()}")
-            Text("Saldo minimo previsto: ${result.minimumLiquidity.balance.toEuro()} il ${result.minimumLiquidity.date.toItalianDate()}")
-            Text("Massimo sostenibile: ${result.maximumSustainableAmount.toEuro()}")
-            Text("Riduzione necessaria: ${result.reductionNeeded.toEuro()}")
-            Text("Extra necessario: ${result.extraIncomeNeeded.toEuro()}")
+            Text("Costo totale reale: ${result.totalCost.toEuro()}", color = LiquidText)
+            Text("Proiezione finale attuale: ${result.currentProjection.toEuro()}", color = LiquidText)
+            Text("Dopo la spesa: ${result.newProjection.toEuro()}", color = LiquidText)
+            Text("Differenza rispetto all'obiettivo: ${result.differenceFromGoal.toEuro()}", color = LiquidText)
+            Text("Budget giornaliero attuale: ${result.currentDailyBudget.toEuro()}", color = LiquidText)
+            Text("Budget giornaliero dopo: ${result.newDailyBudget.toEuro()}", color = LiquidText)
+            Text("Budget settimanale attuale: ${result.currentWeeklyBudget.toEuro()}", color = LiquidText)
+            Text("Budget settimanale dopo: ${result.newWeeklyBudget.toEuro()}", color = LiquidText)
+            Text("Saldo minimo previsto: ${result.minimumLiquidity.balance.toEuro()} il ${result.minimumLiquidity.date.toItalianDate()}", color = LiquidText)
+            Text("Massimo sostenibile: ${result.maximumSustainableAmount.toEuro()}", color = LiquidText)
+            Text("Riduzione necessaria: ${result.reductionNeeded.toEuro()}", color = LiquidText)
+            Text("Extra necessario: ${result.extraIncomeNeeded.toEuro()}", color = LiquidText)
         }
     }
 }
@@ -883,15 +990,15 @@ private fun MetricCard(
     subtitle: String,
     trailing: @Composable (() -> Unit)? = null
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, fontWeight = FontWeight.SemiBold)
-                Text(value, style = MaterialTheme.typography.titleMedium)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall)
+                Text(title, fontWeight = FontWeight.SemiBold, color = LiquidText)
+                Text(value, style = MaterialTheme.typography.titleMedium, color = Aqua)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = LiquidTextSecondary)
             }
             trailing?.invoke()
         }
@@ -905,7 +1012,7 @@ private fun FutureEventCard(title: String, date: String, amount: String, status:
 
 @Composable
 private fun SectionTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+    GlassSectionHeader(text)
 }
 
 @Composable
@@ -914,7 +1021,20 @@ private fun MoneyField(label: String, value: String, onValueChange: (String) -> 
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth(),
-        label = { Text(label) }
+        label = { Text(label) },
+        singleLine = true,
+        shape = RoundedCornerShape(22.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = LiquidText,
+            unfocusedTextColor = LiquidText,
+            focusedLabelColor = CyanGlow,
+            unfocusedLabelColor = LiquidTextSecondary,
+            cursorColor = CyanGlow,
+            focusedBorderColor = CyanGlow,
+            unfocusedBorderColor = LiquidBorder,
+            focusedContainerColor = LiquidSurface.copy(alpha = 0.78f),
+            unfocusedContainerColor = LiquidSurface.copy(alpha = 0.62f)
+        )
     )
 }
 
@@ -922,7 +1042,10 @@ private fun MoneyField(label: String, value: String, onValueChange: (String) -> 
 private fun WalletSelector(wallets: List<WalletEntity>, selected: Long, onSelected: (Long) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         wallets.forEach { wallet ->
-            AssistChip(onClick = { onSelected(wallet.id) }, label = { Text(wallet.name) })
+            AssistChip(
+                onClick = { onSelected(wallet.id) },
+                label = { Text(wallet.name) }
+            )
         }
     }
 }
@@ -983,6 +1106,9 @@ private fun WalletDialog(existing: WalletEntity? = null, onDismiss: () -> Unit, 
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla") } },
         title = { Text("Wallet") },
+        containerColor = LiquidSurfaceElevated,
+        textContentColor = LiquidText,
+        titleContentColor = LiquidText,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 MoneyField("Nome", name) { name = it }
@@ -1005,6 +1131,9 @@ private fun CategoryDialog(existing: CategoryEntity? = null, onDismiss: () -> Un
         confirmButton = { Button(onClick = { onSave(name, group, sensitive, alias.takeIf { sensitive }) }) { Text("Salva") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla") } },
         title = { Text("Categoria") },
+        containerColor = LiquidSurfaceElevated,
+        textContentColor = LiquidText,
+        titleContentColor = LiquidText,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 MoneyField("Nome", name) { name = it }
@@ -1057,6 +1186,9 @@ private fun MovementDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla") } },
         title = { Text("Nuovo movimento") },
+        containerColor = LiquidSurfaceElevated,
+        textContentColor = LiquidText,
+        titleContentColor = LiquidText,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 WalletSelector(wallets, walletId) { walletId = it }
@@ -1102,6 +1234,9 @@ private fun TransferDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla") } },
         title = { Text("Trasferimento") },
+        containerColor = LiquidSurfaceElevated,
+        textContentColor = LiquidText,
+        titleContentColor = LiquidText,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Wallet origine")
@@ -1162,6 +1297,9 @@ private fun RecurringDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla") } },
         title = { Text("Ricorrenza") },
+        containerColor = LiquidSurfaceElevated,
+        textContentColor = LiquidText,
+        titleContentColor = LiquidText,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 MoneyField("Nome", name) { name = it }
@@ -1185,6 +1323,156 @@ private fun RecurringDialog(
             }
         }
     )
+}
+
+@Composable
+private fun GlassCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier
+            .border(1.dp, LiquidBorderStrong, RoundedCornerShape(28.dp)),
+        colors = CardDefaults.cardColors(containerColor = LiquidSurface.copy(alpha = 0.78f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(28.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content
+        )
+    }
+}
+
+@Composable
+private fun HeroBanner(title: String, subtitle: String) {
+    GlassCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.headlineSmall,
+                color = LiquidText
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = LiquidTextSecondary
+            )
+        }
+    }
+}
+
+@Composable
+private fun GlassSectionHeader(text: String) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelLarge,
+        color = LiquidTextSecondary,
+        fontWeight = FontWeight.SemiBold
+    )
+}
+
+@Composable
+private fun WalletBadge(type: WalletType) {
+    AssistChip(
+        onClick = { },
+        enabled = false,
+        label = { Text(type.name) }
+    )
+}
+
+@Composable
+private fun AppBackdropBrush(): Brush = Brush.linearGradient(
+    colors = listOf(
+        LiquidBackground,
+        LiquidBackgroundDeep,
+        Color(0xFF08112B),
+        LiquidBackground
+    )
+)
+
+private data class OnboardingIncomeDraft(
+    val title: String,
+    val amount: String,
+    val reliability: IncomeReliability = IncomeReliability.STIMATA,
+    val walletId: Long? = null
+)
+
+private data class OnboardingExpenseDraft(
+    val title: String,
+    val amount: String,
+    val categoryId: Long? = null
+)
+
+@Composable
+private fun EditableIncomeSection(
+    rows: List<OnboardingIncomeDraft>,
+    wallets: List<WalletEntity>,
+    onAdd: () -> Unit,
+    onRemove: (Int) -> Unit,
+    onChange: (Int, OnboardingIncomeDraft) -> Unit
+) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            GlassSectionHeader("Entrate")
+            TextButton(onClick = onAdd) { Text("+") }
+        }
+        rows.forEachIndexed { index, row ->
+            GlassCard {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MoneyField("Nome entrata", row.title) { onChange(index, row.copy(title = it)) }
+                    MoneyField("Importo", row.amount) { onChange(index, row.copy(amount = it)) }
+                    WalletSelector(wallets, row.walletId ?: wallets.firstOrNull()?.id ?: 0L) { onChange(index, row.copy(walletId = it)) }
+                    EnumChipRow(
+                        items = IncomeReliability.values().toList(),
+                        selected = row.reliability,
+                        label = { it.name },
+                        onSelected = { onChange(index, row.copy(reliability = it)) }
+                    )
+                    if (rows.size > 1) {
+                        TextButton(onClick = { onRemove(index) }) { Text("Rimuovi", color = Danger) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditableExpenseSection(
+    rows: List<OnboardingExpenseDraft>,
+    categories: List<CategoryEntity>,
+    wallets: List<WalletEntity>,
+    onAdd: () -> Unit,
+    onRemove: (Int) -> Unit,
+    onChange: (Int, OnboardingExpenseDraft) -> Unit
+) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            GlassSectionHeader("Spese fisse")
+            TextButton(onClick = onAdd) { Text("+") }
+        }
+        rows.forEachIndexed { index, row ->
+            GlassCard {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MoneyField("Nome spesa", row.title) { onChange(index, row.copy(title = it)) }
+                    MoneyField("Importo", row.amount) { onChange(index, row.copy(amount = it)) }
+                    CategorySelector(categories, row.categoryId) { onChange(index, row.copy(categoryId = it)) }
+                    Text(
+                        "Wallet di default: ${wallets.firstOrNull()?.name ?: "Contanti"}",
+                        color = LiquidTextSecondary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    if (rows.size > 1) {
+                        TextButton(onClick = { onRemove(index) }) { Text("Rimuovi", color = Danger) }
+                    }
+                }
+            }
+        }
+    }
 }
 
 private fun statusColor(status: BudgetStatus): Color = when (status) {

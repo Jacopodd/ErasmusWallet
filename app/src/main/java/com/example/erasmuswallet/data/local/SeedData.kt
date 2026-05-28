@@ -8,10 +8,7 @@ import java.time.LocalDateTime
 
 object SeedData {
     fun defaultWallets(now: LocalDateTime): List<WalletEntity> = listOf(
-        WalletEntity(name = "Intesa", type = WalletType.CARD, initialBalance = 0.0, colorHex = "#17624A", createdAt = now, updatedAt = now),
-        WalletEntity(name = "Revolut", type = WalletType.CARD, initialBalance = 0.0, colorHex = "#2057FF", createdAt = now, updatedAt = now),
-        WalletEntity(name = "Trade Republic", type = WalletType.INVESTMENT, initialBalance = 0.0, colorHex = "#101820", createdAt = now, updatedAt = now),
-        WalletEntity(name = "Contanti", type = WalletType.CASH, initialBalance = 0.0, colorHex = "#B7791F", createdAt = now, updatedAt = now)
+        WalletEntity(name = "Contanti", type = WalletType.CASH, initialBalance = 0.0, colorHex = "#35F0D3", createdAt = now, updatedAt = now)
     )
 
     fun defaultCategories(): List<CategoryEntity> = listOf(

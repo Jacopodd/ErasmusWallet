@@ -74,6 +74,27 @@ class AppRepository(
         database.walletDao().update(wallet.copy(isArchived = archived, updatedAt = LocalDateTime.now()))
     }
 
+    suspend fun deleteWallet(wallet: WalletEntity) {
+        database.withTransaction {
+            database.movementDao().deleteByWalletId(wallet.id)
+            database.recurringRuleDao().deleteByWalletId(wallet.id)
+            database.walletDao().deleteById(wallet.id)
+            if (database.walletDao().count() == 0) {
+                val now = LocalDateTime.now()
+                database.walletDao().insert(
+                    WalletEntity(
+                        name = "Contanti",
+                        type = com.example.erasmuswallet.data.model.WalletType.CASH,
+                        initialBalance = 0.0,
+                        colorHex = "#35F0D3",
+                        createdAt = now,
+                        updatedAt = now
+                    )
+                )
+            }
+        }
+    }
+
     suspend fun upsertCategory(category: CategoryEntity) {
         if (category.id == 0L) database.categoryDao().insert(category) else database.categoryDao().update(category)
     }

@@ -25,6 +25,9 @@ interface WalletDao {
     @Update
     suspend fun update(wallet: WalletEntity)
 
+    @Query("DELETE FROM wallets WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
     @Query("DELETE FROM wallets")
     suspend fun deleteAll()
 }

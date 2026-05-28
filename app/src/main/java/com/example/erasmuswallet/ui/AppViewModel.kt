@@ -175,6 +175,7 @@ class AppViewModel(
     fun saveWallet(id: Long, name: String, type: WalletType, initialBalance: Double, colorHex: String?) {
         viewModelScope.launch {
             val now = LocalDateTime.now()
+            val existing = uiState.value.wallets.firstOrNull { it.id == id }
             repository.upsertWallet(
                 WalletEntity(
                     id = id,
@@ -182,7 +183,8 @@ class AppViewModel(
                     type = type,
                     initialBalance = initialBalance,
                     colorHex = colorHex,
-                    createdAt = now,
+                    isArchived = existing?.isArchived ?: false,
+                    createdAt = existing?.createdAt ?: now,
                     updatedAt = now
                 )
             )
@@ -195,6 +197,12 @@ class AppViewModel(
         }
     }
 
+    fun deleteWallet(wallet: WalletEntity) {
+        viewModelScope.launch {
+            repository.deleteWallet(wallet)
+        }
+    }
+
     fun saveCategory(
         id: Long,
         name: String,
@@ -203,6 +211,7 @@ class AppViewModel(
         alias: String?
     ) {
         viewModelScope.launch {
+            val existing = uiState.value.categories.firstOrNull { it.id == id }
             repository.upsertCategory(
                 CategoryEntity(
                     id = id,
@@ -210,7 +219,7 @@ class AppViewModel(
                     group = group,
                     isSensitive = sensitive,
                     privacyAlias = alias,
-                    isActive = true
+                    isActive = existing?.isActive ?: true
                 )
             )
         }
@@ -237,6 +246,7 @@ class AppViewModel(
     ) {
         viewModelScope.launch {
             val now = LocalDateTime.now()
+            val existing = uiState.value.movements.firstOrNull { it.id == id }
             val movement = MovementEntity(
                 id = id,
                 walletId = walletId,
@@ -249,7 +259,9 @@ class AppViewModel(
                 isPlanned = planned,
                 isConfirmed = confirmed,
                 incomeReliability = incomeReliability,
-                createdAt = now,
+                recurringRuleId = existing?.recurringRuleId,
+                transferGroupId = existing?.transferGroupId,
+                createdAt = existing?.createdAt ?: now,
                 updatedAt = now
             )
             if (id == 0L) repository.addMovement(movement) else repository.updateMovement(movement)
@@ -287,6 +299,7 @@ class AppViewModel(
     ) {
         viewModelScope.launch {
             val now = LocalDateTime.now()
+            val existing = uiState.value.recurringRules.firstOrNull { it.id == id }
             repository.upsertRecurringRule(
                 RecurringRuleEntity(
                     id = id,
@@ -304,7 +317,8 @@ class AppViewModel(
                     isCancelable = cancelable,
                     upfrontCost = upfrontCost,
                     minimumCommitmentMonths = minimumCommitmentMonths,
-                    createdAt = now,
+                    isActive = existing?.isActive ?: true,
+                    createdAt = existing?.createdAt ?: now,
                     updatedAt = now
                 )
             )

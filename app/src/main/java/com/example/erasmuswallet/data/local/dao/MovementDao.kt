@@ -28,6 +28,9 @@ interface MovementDao {
     @Query("DELETE FROM movements WHERE transferGroupId = :groupId")
     suspend fun deleteByTransferGroup(groupId: String)
 
+    @Query("DELETE FROM movements WHERE walletId = :walletId")
+    suspend fun deleteByWalletId(walletId: Long)
+
     @Query("DELETE FROM movements")
     suspend fun deleteAll()
 }

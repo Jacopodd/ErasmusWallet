@@ -1,49 +1,46 @@
 package com.example.erasmuswallet.ui.theme
 
-import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Mint80,
-    secondary = Slate80,
-    tertiary = Coral80
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Mint40,
-    secondary = Slate40,
-    tertiary = Coral40,
-    background = Canvas,
-    surface = SurfaceWarm
+    primary = CyanGlow,
+    onPrimary = Color(0xFF031018),
+    primaryContainer = Color(0xFF113E5D),
+    onPrimaryContainer = LiquidText,
+    secondary = ElectricBlue,
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFF162A67),
+    onSecondaryContainer = LiquidText,
+    tertiary = VividPurple,
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFF33235F),
+    onTertiaryContainer = LiquidText,
+    background = LiquidBackground,
+    onBackground = LiquidText,
+    surface = LiquidSurface,
+    onSurface = LiquidText,
+    surfaceVariant = LiquidSurfaceSoft,
+    onSurfaceVariant = LiquidTextSecondary,
+    outline = LiquidBorderStrong,
+    outlineVariant = LiquidBorder,
+    inverseOnSurface = LiquidBackground,
+    inverseSurface = LiquidText,
+    inversePrimary = Aqua,
+    surfaceTint = CyanGlow,
+    scrim = Color.Black
 )
 
 @Composable
 fun ErasmusWalletTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = DarkColorScheme,
         typography = Typography,
         content = content
     )
