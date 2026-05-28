@@ -1,4 +1,5 @@
-# ErasmusWallet
+![ErasmusWallet Logo](percorso/immagine.png) 
+#ErasmusWallet
 
 ErasmusWallet è un’app mobile pensata per aiutare studenti Erasmus e viaggiatori a gestire il proprio budget in modo semplice, moderno e intelligente.
 
