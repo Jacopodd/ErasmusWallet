@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="app/src/main/res/drawable/logo.png" alt="ErasmusWallet Logo" width="120"/>
+  <img src="app/src/main/res/drawable/logo.png" alt="ErasmusWallet Logo" width="150"/>
 
 </p> 
 
