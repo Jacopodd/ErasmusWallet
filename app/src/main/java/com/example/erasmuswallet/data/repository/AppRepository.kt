@@ -75,6 +75,7 @@ class AppRepository(
     }
 
     suspend fun deleteWallet(wallet: WalletEntity) {
+        if (wallet.name == "Contanti") return
         database.withTransaction {
             database.movementDao().deleteByWalletId(wallet.id)
             database.recurringRuleDao().deleteByWalletId(wallet.id)

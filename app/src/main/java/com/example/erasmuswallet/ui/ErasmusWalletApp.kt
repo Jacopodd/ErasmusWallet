@@ -1,4 +1,7 @@
-@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@file:OptIn(
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
+    androidx.compose.material3.ExperimentalMaterial3Api::class
+)
 
 package com.example.erasmuswallet.ui
 
@@ -10,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,13 +21,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -52,6 +61,8 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -81,6 +92,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -128,17 +140,15 @@ import com.example.erasmuswallet.ui.util.toItalianDate
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.UUID
+import com.example.erasmuswallet.R
 
 private data class Destination(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
 private val destinations = listOf(
     Destination("dashboard", "Dashboard", Icons.Default.Home),
     Destination("movimenti", "Movimenti", Icons.Default.SwapHoriz),
-    Destination("wallet", "Wallet", Icons.Default.AccountBalanceWallet),
-    Destination("ricorrenti", "Ricorrenti", Icons.AutoMirrored.Filled.PlaylistAddCheck),
-    Destination("simulatore", "Simulatore", Icons.AutoMirrored.Filled.ShowChart),
-    Destination("report", "Report", Icons.Default.Analytics),
-    Destination("impostazioni", "Impostazioni", Icons.Default.Settings)
+    Destination("wallet", "Wallets", Icons.Default.AccountBalanceWallet),
+    Destination("simulatore", "Simulatore", Icons.AutoMirrored.Filled.ShowChart)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -155,7 +165,12 @@ fun ErasmusWalletApp(viewModel: AppViewModel) {
     }
 
     if (uiState.onboardingNeeded) {
-        OnboardingScreen(uiState = uiState, onComplete = viewModel::completeOnboarding)
+        OnboardingScreen(
+            uiState = uiState,
+            onSaveWallet = viewModel::saveWallet,
+            onDeleteWallet = viewModel::deleteWallet,
+            onComplete = viewModel::completeOnboarding
+        )
         return
     }
 
@@ -167,7 +182,23 @@ fun ErasmusWalletApp(viewModel: AppViewModel) {
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Erasmus Budget Guardian", color = LiquidText) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Image(
+                            painter = painterResource(R.drawable.logo),
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Text("Erasmus Budget Guardian", color = LiquidText)
+                    }
+                },
+                actions = {
+                    if (currentRoute == "dashboard") {
+                        IconButton(onClick = { navController.navigate("impostazioni") }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Impostazioni")
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = LiquidSurface.copy(alpha = 0.92f),
                     scrolledContainerColor = LiquidSurfaceElevated.copy(alpha = 0.96f),
@@ -204,13 +235,21 @@ fun ErasmusWalletApp(viewModel: AppViewModel) {
                 .fillMaxSize()
                 .background(AppBackdropBrush())
                 .padding(innerPadding)
+                .statusBarsPadding()
+                .navigationBarsPadding()
         ) {
             NavHost(
                 navController = navController,
                 startDestination = "dashboard"
             ) {
                 composable("dashboard") {
-                    DashboardScreen(uiState, onScenarioChange = viewModel::setScenario)
+                    DashboardScreen(
+                        uiState = uiState,
+                        onScenarioChange = viewModel::setScenario,
+                        onOpenReport = { navController.navigate("report") },
+                        onOpenRecurring = { navController.navigate("ricorrenti") },
+                        onOpenCategories = { navController.navigate("categorie") }
+                    )
                 }
                 composable("movimenti") {
                     MovementsScreen(
@@ -282,6 +321,8 @@ fun ErasmusWalletApp(viewModel: AppViewModel) {
 @Composable
 private fun OnboardingScreen(
     uiState: AppUiState,
+    onSaveWallet: (Long, String, WalletType, Double, String?) -> Unit,
+    onDeleteWallet: (WalletEntity) -> Unit,
     onComplete: (
         LocalDate,
         LocalDate,
@@ -298,7 +339,9 @@ private fun OnboardingScreen(
     var endDate by rememberSaveable { mutableStateOf(LocalDate.now().plusMonths(6).toItalianDate()) }
     var finalGoal by rememberSaveable { mutableStateOf("1000") }
     var emergencyFund by rememberSaveable { mutableStateOf("300") }
-    var walletInputs by rememberSaveable { mutableStateOf(wallets.associate { it.id to "0" }) }
+    var walletInputs by rememberSaveable { mutableStateOf(wallets.associate { it.id to it.initialBalance.toString() }) }
+    var showWalletDialog by remember { mutableStateOf(false) }
+    var editingWallet by remember { mutableStateOf<WalletEntity?>(null) }
     val incomeRows = remember {
         mutableStateListOf(
             OnboardingIncomeDraft(title = "Borsa Erasmus", amount = "0", walletId = wallets.firstOrNull()?.id),
@@ -329,11 +372,16 @@ private fun OnboardingScreen(
         modifier = Modifier.fillMaxSize(),
         color = Color.Transparent
     ) {
+        LaunchedEffect(wallets) {
+            walletInputs = wallets.associate { it.id to it.initialBalance.toString() }.toMutableMap()
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(20.dp),
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             HeroBanner(
@@ -344,13 +392,47 @@ private fun OnboardingScreen(
             MoneyField("Data fine Erasmus (Orientativo)", endDate) { endDate = it }
             MoneyField("Obiettivo finale da conservare", finalGoal) { finalGoal = it }
             MoneyField("Fondo imprevisti", emergencyFund) { emergencyFund = it }
-            GlassSectionHeader("Saldi iniziali wallet")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                GlassSectionHeader("Wallets")
+                TextButton(onClick = {
+                    editingWallet = null
+                    showWalletDialog = true
+                }) {
+                    Text("+")
+                }
+            }
             wallets.forEach { wallet ->
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(wallet.name, color = LiquidText, fontWeight = FontWeight.SemiBold)
-                        MoneyField("Saldo iniziale", walletInputs[wallet.id].orEmpty()) {
-                            walletInputs = walletInputs.toMutableMap().apply { put(wallet.id, it) }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(wallet.name, color = LiquidText, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "Saldo iniziale: ${walletInputs[wallet.id].orEmpty()}",
+                                    color = LiquidTextSecondary,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            if (wallet.name != "Contanti") {
+                                TextButton(onClick = {
+                                    editingWallet = wallet
+                                    showWalletDialog = true
+                                }) { Text("Modifica") }
+                                TextButton(onClick = { onDeleteWallet(wallet) }) { Text("Rimuovi", color = Danger) }
+                            } else {
+                                TextButton(onClick = {
+                                    editingWallet = wallet
+                                    showWalletDialog = true
+                                }) { Text("Modifica") }
+                            }
                         }
                     }
                 }
@@ -402,23 +484,50 @@ private fun OnboardingScreen(
             }
         }
     }
+    if (showWalletDialog) {
+        WalletDialog(
+            existing = editingWallet,
+            onDismiss = { showWalletDialog = false },
+            onSave = { name, type, balance, color ->
+                onSaveWallet(editingWallet?.id ?: 0L, name, type, balance, color)
+                showWalletDialog = false
+                editingWallet = null
+            }
+        )
+    }
 }
 
 @Composable
-private fun DashboardScreen(uiState: AppUiState, onScenarioChange: (ScenarioType) -> Unit) {
+private fun DashboardScreen(
+    uiState: AppUiState,
+    onScenarioChange: (ScenarioType) -> Unit,
+    onOpenReport: () -> Unit,
+    onOpenRecurring: () -> Unit,
+    onOpenCategories: () -> Unit
+) {
     val summary = uiState.summary ?: return
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
+            DashboardHero(summary = summary)
+        }
+        item {
             ScenarioChooser(selected = uiState.selectedScenario, onScenarioChange = onScenarioChange)
         }
         item {
-            StatusHero(summary)
+            StatusHero(summary, uiState.selectedScenario)
         }
         item {
             SummaryGrid(summary)
+        }
+        item {
+            QuickActionsCard(
+                onOpenReport = onOpenReport,
+                onOpenRecurring = onOpenRecurring,
+                onOpenCategories = onOpenCategories
+            )
         }
         item {
             SectionTitle("Prossime spese")
@@ -437,6 +546,7 @@ private fun DashboardScreen(uiState: AppUiState, onScenarioChange: (ScenarioType
         }
         items(summary.walletSummaries) { wallet ->
             MetricCard(
+                modifier = Modifier.fillMaxWidth(),
                 title = wallet.wallet.name,
                 value = wallet.currentBalance.toEuro(),
                 subtitle = "${(wallet.percentageOnTotal * 100).toInt()}% del totale"
@@ -565,7 +675,7 @@ private fun WalletScreen(
             Modifier.fillMaxSize().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            GlassSectionHeader("Wallet")
+            GlassSectionHeader("Wallets")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onOpenCategories) { Text("Gestisci categorie") }
             }
@@ -908,33 +1018,108 @@ private fun SettingsScreen(
 }
 
 @Composable
-private fun StatusHero(summary: BudgetSummary) {
+private fun DashboardHero(summary: BudgetSummary) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Image(
+                painter = painterResource(R.drawable.logo),
+                contentDescription = null,
+                modifier = Modifier.size(72.dp)
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Liquid glass budget", style = MaterialTheme.typography.headlineSmall, color = LiquidText)
+                Text(
+                    "Tutto il piano Erasmus, aggiornato in tempo reale.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = LiquidTextSecondary
+                )
+                Text(
+                    "Saldo totale: ${summary.totalBalance.toEuro()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Aqua
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusHero(summary: BudgetSummary, selectedScenario: ScenarioType) {
     val color = statusColor(summary.status)
-    Card(
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.15f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Stato ${summary.status.name.replace("_", " ")}", fontWeight = FontWeight.Bold, color = color)
-            Text("Saldo totale attuale: ${summary.totalBalance.toEuro()}")
-            Text("Obiettivo finale protetto: ${summary.protectedReserve.toEuro()}")
-            Text("Soldi realmente spendibili: ${summary.spendableMoney.toEuro()}")
-            Text("Proiezione fine Erasmus: ${summary.finalProjection.toEuro()}")
-            Text("Saldo minimo previsto: ${summary.minimumLiquidity.balance.toEuro()} il ${summary.minimumLiquidity.date.toItalianDate()}")
+            Text("Prospettiva attiva: ${selectedScenario.name.lowercase().replaceFirstChar { it.uppercase() }}", color = LiquidTextSecondary)
+            Text("Saldo totale attuale: ${summary.totalBalance.toEuro()}", color = LiquidText)
+            Text("Obiettivo finale protetto: ${summary.protectedReserve.toEuro()}", color = LiquidText)
+            Text("Soldi realmente spendibili: ${summary.spendableMoney.toEuro()}", color = LiquidText)
+            Text("Proiezione fine Erasmus: ${summary.finalProjection.toEuro()}", color = LiquidText)
+            Text("Saldo minimo previsto: ${summary.minimumLiquidity.balance.toEuro()} il ${summary.minimumLiquidity.date.toItalianDate()}", color = LiquidText)
         }
     }
 }
 
 @Composable
 private fun SummaryGrid(summary: BudgetSummary) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        MetricCard("Giorni rimanenti", summary.daysRemaining.toString(), "Fino a fine Erasmus")
-        MetricCard("Budget giornaliero consigliato", summary.dailyBudget.toEuro(), "Scenario attivo")
-        MetricCard("Budget settimanale consigliato", summary.weeklyBudget.toEuro(), "Scenario attivo")
-        MetricCard("Speso questa settimana", summary.spentThisWeek.toEuro(), "Movimenti confermati")
-        MetricCard("Rimanente questa settimana", summary.remainingThisWeek.toEuro(), "Budget residuo")
+    val metrics = listOf(
+        DashboardMetric("Giorni rimanenti", summary.daysRemaining.toString(), "Fino a fine Erasmus"),
+        DashboardMetric("Budget giornaliero", summary.dailyBudget.toEuro(), "Scenario attivo"),
+        DashboardMetric("Budget settimanale", summary.weeklyBudget.toEuro(), "Scenario attivo"),
+        DashboardMetric("Speso questa settimana", summary.spentThisWeek.toEuro(), "Movimenti confermati"),
+        DashboardMetric("Rimanente questa settimana", summary.remainingThisWeek.toEuro(), "Budget residuo")
+    )
+    BoxWithConstraints {
+        val useTwoColumns = maxWidth >= 420.dp
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            metrics.chunked(if (useTwoColumns) 2 else 1).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    row.forEach { metric ->
+                        MetricCard(
+                            modifier = Modifier.weight(1f),
+                            title = metric.title,
+                            value = metric.value,
+                            subtitle = metric.subtitle
+                        )
+                    }
+                    if (useTwoColumns && row.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
     }
 }
+
+@Composable
+private fun QuickActionsCard(
+    onOpenReport: () -> Unit,
+    onOpenRecurring: () -> Unit,
+    onOpenCategories: () -> Unit
+) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            GlassSectionHeader("Collegamenti rapidi")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = onOpenReport, modifier = Modifier.weight(1f)) { Text("Report") }
+                OutlinedButton(onClick = onOpenRecurring, modifier = Modifier.weight(1f)) { Text("Ricorrenti") }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = onOpenCategories, modifier = Modifier.weight(1f)) { Text("Categorie") }
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+private data class DashboardMetric(
+    val title: String,
+    val value: String,
+    val subtitle: String
+)
 
 @Composable
 private fun SimulationResultCard(result: SimulationResult) {
@@ -959,9 +1144,14 @@ private fun SimulationResultCard(result: SimulationResult) {
 
 @Composable
 private fun ScenarioChooser(selected: ScenarioType, onScenarioChange: (ScenarioType) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Scenario di calcolo", fontWeight = FontWeight.SemiBold)
-        EnumChipRow(items = ScenarioType.values().toList(), selected = selected, label = { it.name.lowercase() }, onSelected = onScenarioChange)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        GlassSectionHeader("Prospettive")
+        EnumChipRow(
+            items = ScenarioType.values().toList(),
+            selected = selected,
+            label = { it.name.lowercase().replaceFirstChar { char -> char.uppercase() } },
+            onSelected = onScenarioChange
+        )
     }
 }
 
@@ -974,10 +1164,18 @@ private fun <T> EnumChipRow(
 ) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items.forEach { item ->
-            AssistChip(
+            FilterChip(
+                selected = item == selected,
                 onClick = { onSelected(item) },
                 label = { Text(label(item)) },
-                leadingIcon = if (item == selected) ({ Icon(Icons.AutoMirrored.Filled.PlaylistAddCheck, null, modifier = Modifier.size(16.dp)) }) else null
+                leadingIcon = if (item == selected) ({ Icon(Icons.AutoMirrored.Filled.PlaylistAddCheck, null, modifier = Modifier.size(16.dp)) }) else null,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = ElectricBlue.copy(alpha = 0.28f),
+                    selectedLabelColor = LiquidText,
+                    selectedLeadingIconColor = CyanGlow,
+                    containerColor = LiquidSurfaceSoft,
+                    labelColor = LiquidTextSecondary
+                )
             )
         }
     }
@@ -988,9 +1186,10 @@ private fun MetricCard(
     title: String,
     value: String,
     subtitle: String,
+    modifier: Modifier = Modifier.fillMaxWidth(),
     trailing: @Composable (() -> Unit)? = null
 ) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
+    GlassCard(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
