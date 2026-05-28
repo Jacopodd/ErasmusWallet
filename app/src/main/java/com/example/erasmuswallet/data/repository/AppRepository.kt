@@ -75,7 +75,7 @@ class AppRepository(
     }
 
     suspend fun deleteWallet(wallet: WalletEntity) {
-        if (wallet.name == "Contanti") return
+        if (wallet.iconName == "base-cash") return
         database.withTransaction {
             database.movementDao().deleteByWalletId(wallet.id)
             database.recurringRuleDao().deleteByWalletId(wallet.id)
@@ -88,6 +88,7 @@ class AppRepository(
                         type = com.example.erasmuswallet.data.model.WalletType.CASH,
                         initialBalance = 0.0,
                         colorHex = "#35F0D3",
+                        iconName = "base-cash",
                         createdAt = now,
                         updatedAt = now
                     )

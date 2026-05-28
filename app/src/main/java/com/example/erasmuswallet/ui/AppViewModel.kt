@@ -183,6 +183,7 @@ class AppViewModel(
                     type = type,
                     initialBalance = initialBalance,
                     colorHex = colorHex,
+                    iconName = existing?.iconName,
                     isArchived = existing?.isArchived ?: false,
                     createdAt = existing?.createdAt ?: now,
                     updatedAt = now

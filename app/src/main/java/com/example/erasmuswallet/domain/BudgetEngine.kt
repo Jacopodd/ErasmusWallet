@@ -41,10 +41,12 @@ class BudgetEngine(
             .sortedBy { it.date }
         val upcomingIncomes = (futureMovements.filter { it.amount > 0 } + recurringEvents.filter { it.amount > 0 })
             .sortedBy { it.date }
+        val futureFixedIncome = recurringEvents.filter { it.amount > 0 }.sumOf { it.amount }
+        val futureFixedExpense = recurringEvents.filter { it.amount < 0 }.sumOf { -it.amount }
         val futureIncome = upcomingIncomes.sumOf { it.amount }
         val futureMandatoryExpense = upcomingExpenses.filter { it.mandatory }.sumOf { -it.amount }
         val futurePlannedExpense = upcomingExpenses.filterNot { it.mandatory }.sumOf { -it.amount }
-        val spendableMoney = totalBalance + futureIncome - futureMandatoryExpense - futurePlannedExpense - protectedReserve
+        val spendableMoney = totalBalance + futureFixedIncome - futureFixedExpense - protectedReserve
         val daysRemaining = max(1, ChronoUnit.DAYS.between(today, endDate).coerceAtLeast(1))
         val dailyBudget = spendableMoney / daysRemaining
         val weeklyBudget = dailyBudget * 7
@@ -76,6 +78,8 @@ class BudgetEngine(
             totalBalance = totalBalance,
             protectedReserve = protectedReserve,
             spendableMoney = spendableMoney,
+            futureFixedIncome = futureFixedIncome,
+            futureFixedExpense = futureFixedExpense,
             daysRemaining = daysRemaining,
             dailyBudget = dailyBudget,
             weeklyBudget = weeklyBudget,

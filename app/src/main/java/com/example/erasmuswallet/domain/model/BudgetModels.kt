@@ -29,6 +29,8 @@ data class BudgetSummary(
     val totalBalance: Double,
     val protectedReserve: Double,
     val spendableMoney: Double,
+    val futureFixedIncome: Double,
+    val futureFixedExpense: Double,
     val daysRemaining: Long,
     val dailyBudget: Double,
     val weeklyBudget: Double,

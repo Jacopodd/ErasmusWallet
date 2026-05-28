@@ -6,6 +6,7 @@
 package com.example.erasmuswallet.ui
 
 import android.content.Intent
+import android.graphics.Color.parseColor
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -63,6 +64,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -139,6 +141,7 @@ import com.example.erasmuswallet.ui.util.toEuro
 import com.example.erasmuswallet.ui.util.toItalianDate
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import com.example.erasmuswallet.R
 
@@ -373,7 +376,9 @@ private fun OnboardingScreen(
         color = Color.Transparent
     ) {
         LaunchedEffect(wallets) {
-            walletInputs = wallets.associate { it.id to it.initialBalance.toString() }.toMutableMap()
+            walletInputs = wallets.associate { wallet ->
+                wallet.id to (walletInputs[wallet.id] ?: wallet.initialBalance.toString())
+            }.toMutableMap()
         }
         Column(
             modifier = Modifier
@@ -421,7 +426,7 @@ private fun OnboardingScreen(
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
-                            if (wallet.name != "Contanti") {
+                            if (wallet.iconName != "base-cash") {
                                 TextButton(onClick = {
                                     editingWallet = wallet
                                     showWalletDialog = true
@@ -506,6 +511,7 @@ private fun DashboardScreen(
     onOpenCategories: () -> Unit
 ) {
     val summary = uiState.summary ?: return
+    var showUpcomingExpenses by remember { mutableStateOf(false) }
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -520,26 +526,15 @@ private fun DashboardScreen(
             StatusHero(summary, uiState.selectedScenario)
         }
         item {
-            SummaryGrid(summary)
+            SummaryGrid(summary, uiState.settings)
         }
         item {
             QuickActionsCard(
                 onOpenReport = onOpenReport,
                 onOpenRecurring = onOpenRecurring,
-                onOpenCategories = onOpenCategories
+                onOpenCategories = onOpenCategories,
+                onOpenUpcomingExpenses = { showUpcomingExpenses = true }
             )
-        }
-        item {
-            SectionTitle("Prossime spese")
-        }
-        items(summary.upcomingExpenses) { event ->
-            FutureEventCard(event.title, event.date.toItalianDate(), (-event.amount).toEuro(), summary.status)
-        }
-        item {
-            SectionTitle("Prossime entrate")
-        }
-        items(summary.upcomingIncomes) { event ->
-            FutureEventCard(event.title, event.date.toItalianDate(), event.amount.toEuro(), BudgetStatus.SICURO)
         }
         item {
             SectionTitle("Wallet")
@@ -553,6 +548,13 @@ private fun DashboardScreen(
             )
         }
         item { Spacer(Modifier.height(16.dp)) }
+    }
+    if (showUpcomingExpenses) {
+        UpcomingEventsDialog(
+            title = "Prossime spese",
+            events = summary.upcomingExpenses,
+            onDismiss = { showUpcomingExpenses = false }
+        )
     }
 }
 
@@ -689,7 +691,14 @@ private fun WalletScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(summary.wallet.name, color = LiquidText, fontWeight = FontWeight.SemiBold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(12.dp)
+                                                .background(colorFromHex(summary.wallet.colorHex ?: walletColorOptions.first().hex), RoundedCornerShape(50.dp))
+                                        )
+                                        Text(summary.wallet.name, color = LiquidText, fontWeight = FontWeight.SemiBold)
+                                    }
                                     Text(summary.currentBalance.toEuro(), style = MaterialTheme.typography.titleLarge, color = Aqua)
                                     Text(
                                         buildString {
@@ -713,8 +722,10 @@ private fun WalletScreen(
                                 TextButton(onClick = { onToggleArchive(summary.wallet) }) {
                                     Text(if (summary.wallet.isArchived) "Riattiva" else "Archivia")
                                 }
-                                TextButton(onClick = { onDelete(summary.wallet) }) {
-                                    Text("Elimina", color = Danger)
+                                if (summary.wallet.iconName != "base-cash") {
+                                    TextButton(onClick = { onDelete(summary.wallet) }) {
+                                        Text("Elimina", color = Danger)
+                                    }
                                 }
                             }
                         }
@@ -1033,7 +1044,7 @@ private fun DashboardHero(summary: BudgetSummary) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Liquid glass budget", style = MaterialTheme.typography.headlineSmall, color = LiquidText)
                 Text(
-                    "Tutto il piano Erasmus, aggiornato in tempo reale.",
+                    "Dashboard compatta e professionale per il tuo Erasmus.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = LiquidTextSecondary
                 )
@@ -1056,39 +1067,94 @@ private fun StatusHero(summary: BudgetSummary, selectedScenario: ScenarioType) {
             Text("Prospettiva attiva: ${selectedScenario.name.lowercase().replaceFirstChar { it.uppercase() }}", color = LiquidTextSecondary)
             Text("Saldo totale attuale: ${summary.totalBalance.toEuro()}", color = LiquidText)
             Text("Obiettivo finale protetto: ${summary.protectedReserve.toEuro()}", color = LiquidText)
-            Text("Soldi realmente spendibili: ${summary.spendableMoney.toEuro()}", color = LiquidText)
-            Text("Proiezione fine Erasmus: ${summary.finalProjection.toEuro()}", color = LiquidText)
-            Text("Saldo minimo previsto: ${summary.minimumLiquidity.balance.toEuro()} il ${summary.minimumLiquidity.date.toItalianDate()}", color = LiquidText)
+            Text(
+                "Soldi totali spendibili: ${summary.spendableMoney.toEuro()}",
+                color = LiquidText
+            )
+            Text(
+                "Formula: saldo + entrate fisse - spese fisse - obiettivo protetto",
+                color = LiquidTextSecondary,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text("Proiezione saldo finale attesa: ${summary.finalProjection.toEuro()}", color = LiquidText)
+            Text(
+                "Include anche i movimenti futuri programmati",
+                color = LiquidTextSecondary,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text(
+                "Punto di liquidità minima: ${summary.minimumLiquidity.balance.toEuro()} il ${summary.minimumLiquidity.date.toItalianDate()}",
+                color = LiquidText
+            )
+            Text(
+                "Momento più critico della cassa prevista",
+                color = LiquidTextSecondary,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
 
 @Composable
-private fun SummaryGrid(summary: BudgetSummary) {
+private fun SummaryGrid(summary: BudgetSummary, settings: ErasmusSettingsEntity?) {
+    val totalDays = if (settings != null) {
+        maxOf(1L, ChronoUnit.DAYS.between(settings.startDate, settings.endDate).coerceAtLeast(1))
+    } else {
+        summary.daysRemaining
+    }
+    val daysElapsed = (totalDays - summary.daysRemaining).coerceAtLeast(0)
     val metrics = listOf(
-        DashboardMetric("Giorni rimanenti", summary.daysRemaining.toString(), "Fino a fine Erasmus"),
-        DashboardMetric("Budget giornaliero", summary.dailyBudget.toEuro(), "Scenario attivo"),
-        DashboardMetric("Budget settimanale", summary.weeklyBudget.toEuro(), "Scenario attivo"),
-        DashboardMetric("Speso questa settimana", summary.spentThisWeek.toEuro(), "Movimenti confermati"),
-        DashboardMetric("Rimanente questa settimana", summary.remainingThisWeek.toEuro(), "Budget residuo")
+        DashboardMetric(
+            title = "Giorni rimanenti",
+            value = summary.daysRemaining.toString(),
+            subtitle = "Fino a fine Erasmus",
+            progress = (daysElapsed.toDouble() / totalDays.toDouble()).coerceIn(0.0, 1.0),
+            progressLabel = "Avanzamento periodo"
+        ),
+        DashboardMetric(
+            title = "Budget giornaliero",
+            value = summary.dailyBudget.toEuro(),
+            subtitle = "Quota media al giorno",
+            progress = (summary.dailyBudget / maxOf(summary.weeklyBudget, 1.0)).coerceIn(0.0, 1.0),
+            progressLabel = "Quota del settimanale"
+        ),
+        DashboardMetric(
+            title = "Budget settimanale",
+            value = summary.weeklyBudget.toEuro(),
+            subtitle = "Quota media alla settimana",
+            progress = (summary.weeklyBudget / maxOf(summary.totalBalance + summary.futureFixedIncome - summary.futureFixedExpense, 1.0)).coerceIn(0.0, 1.0),
+            progressLabel = "Peso sul totale"
+        ),
+        DashboardMetric(
+            title = "Speso questa settimana",
+            value = summary.spentThisWeek.toEuro(),
+            subtitle = "Movimenti confermati",
+            progress = (summary.spentThisWeek / maxOf(summary.weeklyBudget, 1.0)).coerceIn(0.0, 1.0),
+            progressLabel = "Budget usato"
+        ),
+        DashboardMetric(
+            title = "Rimanente questa settimana",
+            value = summary.remainingThisWeek.toEuro(),
+            subtitle = "Budget residuo",
+            progress = (summary.remainingThisWeek / maxOf(summary.weeklyBudget, 1.0)).coerceIn(0.0, 1.0),
+            progressLabel = "Budget disponibile"
+        )
     )
-    BoxWithConstraints {
-        val useTwoColumns = maxWidth >= 420.dp
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            metrics.chunked(if (useTwoColumns) 2 else 1).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    row.forEach { metric ->
-                        MetricCard(
-                            modifier = Modifier.weight(1f),
-                            title = metric.title,
-                            value = metric.value,
-                            subtitle = metric.subtitle
-                        )
-                    }
-                    if (useTwoColumns && row.size == 1) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            metrics.take(3).forEach { metric ->
+                CompactMetricCard(
+                    modifier = Modifier.weight(1f),
+                    metric = metric
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            metrics.drop(3).forEach { metric ->
+                CompactMetricCard(
+                    modifier = Modifier.weight(1f),
+                    metric = metric
+                )
             }
         }
     }
@@ -1098,7 +1164,8 @@ private fun SummaryGrid(summary: BudgetSummary) {
 private fun QuickActionsCard(
     onOpenReport: () -> Unit,
     onOpenRecurring: () -> Unit,
-    onOpenCategories: () -> Unit
+    onOpenCategories: () -> Unit,
+    onOpenUpcomingExpenses: () -> Unit
 ) {
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1109,7 +1176,7 @@ private fun QuickActionsCard(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(onClick = onOpenCategories, modifier = Modifier.weight(1f)) { Text("Categorie") }
-                Spacer(modifier = Modifier.weight(1f))
+                OutlinedButton(onClick = onOpenUpcomingExpenses, modifier = Modifier.weight(1f)) { Text("Prossime spese") }
             }
         }
     }
@@ -1118,7 +1185,9 @@ private fun QuickActionsCard(
 private data class DashboardMetric(
     val title: String,
     val value: String,
-    val subtitle: String
+    val subtitle: String,
+    val progress: Double,
+    val progressLabel: String
 )
 
 @Composable
@@ -1134,7 +1203,7 @@ private fun SimulationResultCard(result: SimulationResult) {
             Text("Budget giornaliero dopo: ${result.newDailyBudget.toEuro()}", color = LiquidText)
             Text("Budget settimanale attuale: ${result.currentWeeklyBudget.toEuro()}", color = LiquidText)
             Text("Budget settimanale dopo: ${result.newWeeklyBudget.toEuro()}", color = LiquidText)
-            Text("Saldo minimo previsto: ${result.minimumLiquidity.balance.toEuro()} il ${result.minimumLiquidity.date.toItalianDate()}", color = LiquidText)
+            Text("Punto di liquidità minima: ${result.minimumLiquidity.balance.toEuro()} il ${result.minimumLiquidity.date.toItalianDate()}", color = LiquidText)
             Text("Massimo sostenibile: ${result.maximumSustainableAmount.toEuro()}", color = LiquidText)
             Text("Riduzione necessaria: ${result.reductionNeeded.toEuro()}", color = LiquidText)
             Text("Extra necessario: ${result.extraIncomeNeeded.toEuro()}", color = LiquidText)
@@ -1200,6 +1269,31 @@ private fun MetricCard(
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = LiquidTextSecondary)
             }
             trailing?.invoke()
+        }
+    }
+}
+
+@Composable
+private fun CompactMetricCard(
+    modifier: Modifier = Modifier,
+    metric: DashboardMetric
+) {
+    GlassCard(modifier = modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(metric.title, color = LiquidTextSecondary, style = MaterialTheme.typography.labelMedium)
+            Text(metric.value, color = LiquidText, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(metric.subtitle, color = LiquidTextSecondary, style = MaterialTheme.typography.bodySmall)
+            LinearProgressIndicator(
+                progress = { metric.progress.toFloat() },
+                modifier = Modifier.fillMaxWidth().height(6.dp),
+                color = CyanGlow,
+                trackColor = LiquidSurfaceSoft
+            )
+            Text(
+                "${metric.progressLabel} · ${(metric.progress * 100).toInt()}%",
+                color = Aqua,
+                style = MaterialTheme.typography.labelSmall
+            )
         }
     }
 }
@@ -1297,7 +1391,8 @@ private fun WalletDialog(existing: WalletEntity? = null, onDismiss: () -> Unit, 
     var name by rememberSaveable(existing?.id) { mutableStateOf(existing?.name.orEmpty()) }
     var balance by rememberSaveable(existing?.id) { mutableStateOf((existing?.initialBalance ?: 0.0).toString()) }
     var type by rememberSaveable(existing?.id) { mutableStateOf(existing?.type ?: WalletType.CARD) }
-    var color by rememberSaveable(existing?.id) { mutableStateOf(existing?.colorHex ?: "#17624A") }
+    var color by rememberSaveable(existing?.id) { mutableStateOf(existing?.colorHex ?: walletColorOptions.first().hex) }
+    var showPalette by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
@@ -1312,11 +1407,39 @@ private fun WalletDialog(existing: WalletEntity? = null, onDismiss: () -> Unit, 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 MoneyField("Nome", name) { name = it }
                 MoneyField("Saldo iniziale", balance) { balance = it }
-                MoneyField("Colore HEX", color) { color = it }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Colore wallet", color = LiquidTextSecondary, style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .border(1.dp, LiquidBorderStrong, RoundedCornerShape(14.dp))
+                                .background(colorFromHex(color), RoundedCornerShape(14.dp))
+                        )
+                        TextButton(onClick = { showPalette = true }) {
+                            Text("Scegli colore")
+                        }
+                    }
+                    Text(
+                        "Anteprima visiva, salvataggio interno in HEX",
+                        color = LiquidTextSecondary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
                 EnumChipRow(items = WalletType.values().toList(), selected = type, label = { it.name }, onSelected = { type = it })
             }
         }
     )
+    if (showPalette) {
+        WalletColorPaletteDialog(
+            selectedHex = color,
+            onDismiss = { showPalette = false },
+            onSelect = {
+                color = it
+                showPalette = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -1593,6 +1716,19 @@ private fun AppBackdropBrush(): Brush = Brush.linearGradient(
     )
 )
 
+private data class WalletColorOption(val name: String, val hex: String)
+
+private val walletColorOptions = listOf(
+    WalletColorOption("Cyan", "#58F0FF"),
+    WalletColorOption("Aqua", "#35F0D3"),
+    WalletColorOption("Blue", "#2A7BFF"),
+    WalletColorOption("Purple", "#9B5CFF"),
+    WalletColorOption("Deep Blue", "#1E3FFF"),
+    WalletColorOption("Night", "#0E1733"),
+    WalletColorOption("Mint", "#73F7CE"),
+    WalletColorOption("Pink", "#E66BFF")
+)
+
 private data class OnboardingIncomeDraft(
     val title: String,
     val amount: String,
@@ -1605,6 +1741,95 @@ private data class OnboardingExpenseDraft(
     val amount: String,
     val categoryId: Long? = null
 )
+
+@Composable
+private fun WalletColorPaletteDialog(
+    selectedHex: String,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Chiudi") } },
+        title = { Text("Scegli colore wallet") },
+        containerColor = LiquidSurfaceElevated,
+        textContentColor = LiquidText,
+        titleContentColor = LiquidText,
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                        .border(1.dp, LiquidBorderStrong, RoundedCornerShape(20.dp))
+                        .background(colorFromHex(selectedHex), RoundedCornerShape(20.dp))
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    walletColorOptions.forEach { option ->
+                        FilterChip(
+                            selected = selectedHex.equals(option.hex, ignoreCase = true),
+                            onClick = { onSelect(option.hex) },
+                            label = { Text(option.name) },
+                            leadingIcon = {
+                        Box(
+                            modifier = Modifier
+                                .size(14.dp)
+                                .background(colorFromHex(option.hex), RoundedCornerShape(50.dp))
+                        )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = ElectricBlue.copy(alpha = 0.28f),
+                                selectedLabelColor = LiquidText,
+                                selectedLeadingIconColor = LiquidText,
+                                containerColor = LiquidSurfaceSoft,
+                                labelColor = LiquidTextSecondary
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun UpcomingEventsDialog(
+    title: String,
+    events: List<com.example.erasmuswallet.domain.model.FutureEvent>,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Chiudi") } },
+        title = { Text(title) },
+        containerColor = LiquidSurfaceElevated,
+        textContentColor = LiquidText,
+        titleContentColor = LiquidText,
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (events.isEmpty()) {
+                    Text("Nessuna spesa futura prevista.")
+                } else {
+                    events.take(10).forEach { event ->
+                        GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(event.title, color = LiquidText, fontWeight = FontWeight.SemiBold)
+                                Text(event.date.toItalianDate(), color = LiquidTextSecondary, style = MaterialTheme.typography.bodySmall)
+                                Text((-event.amount).toEuro(), color = Danger)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+}
+
+private fun colorFromHex(hex: String): Color = try {
+    Color(parseColor(hex))
+} catch (_: IllegalArgumentException) {
+    Color(parseColor(walletColorOptions.first().hex))
+}
 
 @Composable
 private fun EditableIncomeSection(
